@@ -92,7 +92,6 @@ fn main() {
     let mut count = 0;
     let mut memory = Map::<Cord, bool>::new();
     for (cube, v) in &sides_data {
-        // TODO figure out how to not reset memory!!
         let mut checked = Set::<Cord>::new();
         let res = check_outside(cube, &mut memory, &bounds, &cubes_set, &mut checked);
         for cord in checked {
