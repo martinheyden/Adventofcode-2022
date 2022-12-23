@@ -1,6 +1,10 @@
 use aoc2022::read_input::read_file_to_string_vec;
-use std::collections::HashSet as Set;
-use std::collections::HashMap as Map;
+// use std::collections::HashSet as Set;
+// use std::collections::HashMap as Map;
+use rustc_hash::FxHashMap as Map;
+use rustc_hash::FxHashSet as Set;
+use std::time::SystemTime;
+// use heapless::FnvIndexSet as Set;
 
 #[derive(Copy, Clone, Debug)]
 enum Dir {
@@ -9,6 +13,12 @@ enum Dir {
     South,
     West
 }
+
+enum Count {
+    One(Position),
+    TwoPlus,
+}
+
 #[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
 struct Position {
     x: isize,
@@ -20,18 +30,17 @@ impl Position {
         Self{x: x, y: y}
     }
 
-    fn get_neighbours(&self, dir: Dir) -> Vec<Position> {
+    fn get_neighbours(&self, dir: Dir) -> [Position;3] {
         match dir {
-            Dir::North => vec![Position::new(self.x-1, self.y-1), Position::new(self.x, self.y-1), Position::new(self.x+1, self.y-1)],
-            Dir::East => vec![Position::new(self.x+1, self.y-1), Position::new(self.x+1, self.y), Position::new(self.x+1, self.y+1)],
-            Dir::South => vec![Position::new(self.x-1, self.y+1), Position::new(self.x, self.y+1), Position::new(self.x+1, self.y+1)],
-            Dir::West => vec![Position::new(self.x-1, self.y-1), Position::new(self.x-1, self.y), Position::new(self.x-1, self.y+1)]
+            Dir::North => [Position::new(self.x-1, self.y-1), Position::new(self.x, self.y-1), Position::new(self.x+1, self.y-1)],
+            Dir::East => [Position::new(self.x+1, self.y-1), Position::new(self.x+1, self.y), Position::new(self.x+1, self.y+1)],
+            Dir::South => [Position::new(self.x-1, self.y+1), Position::new(self.x, self.y+1), Position::new(self.x+1, self.y+1)],
+            Dir::West => [Position::new(self.x-1, self.y-1), Position::new(self.x-1, self.y), Position::new(self.x-1, self.y+1)]
         }
     }
 
     fn propose_position(&self, elves: &Set<Position>, dir_order: &Vec<Dir>) -> Option<Position> {
         if !self.has_neighbour(elves) {
-            // println!("{:?} has no neigh", self);
             return None;
         }
         for dir in dir_order {
@@ -74,32 +83,37 @@ impl Position {
 
 
 fn main() {
+    let start = SystemTime::now();
     let mut elves = parse_input("data/day23.txt");
     let mut dir_order = vec![Dir::North, Dir::South, Dir::West, Dir::East];
     let mut i = 0;
     let mut ans = 0;
+    let mut proposed_positions = Map::<Position, Count>::default();
     loop {
         let mut moved = false;
         i = i + 1;
-        let mut proposed_positions = Map::<Position, Vec<Position>>::new();
+        proposed_positions.clear();
         for p in &elves {
             match p.propose_position(&elves, &dir_order) {
                 None => {},
                 Some(new_p) => {
                     match  proposed_positions.get_mut(&new_p) {
-                       Some(v) => v.push(new_p),
-                       None => {proposed_positions.insert(new_p, vec![*p]);},
+                       Some(_) => {proposed_positions.insert(new_p, Count::TwoPlus);},
+                       None => {proposed_positions.insert(new_p, Count::One(*p));},
                     }
                 }
             }
         }
-        for (target_pos, source_vec) in &proposed_positions {
-            if source_vec.len() != 1 {
-                continue;
+        for (target_pos, count) in &proposed_positions {
+            match count {
+                Count::One(v) => {
+                    moved = true;
+                    elves.remove(v);
+                    elves.insert(*target_pos);
+                }
+                Count::TwoPlus => {},
             }
-            moved = true;
-            elves.remove(&source_vec[0]);
-            elves.insert(*target_pos);
+            
         }
         dir_order.rotate_left(1);
         if i == 10 {
@@ -116,6 +130,9 @@ fn main() {
     
     println!("Ans a is {}", ans);
     println!("Ans b is {}", i);
+    let end = SystemTime::now();
+    let elapsed = end.duration_since(start);
+    println!("The time is probably {}ms", elapsed.unwrap_or_default().as_millis());
 }
 
 
@@ -134,7 +151,7 @@ fn visualize(elves: &Set<Position>) {
 }
 
 fn parse_input(file_name: &str) -> Set<Position> {
-    let mut elves = Set::new();
+    let mut elves = Set::default();
     let lines = read_file_to_string_vec(file_name);
     for (y,line) in lines.iter().enumerate() {
         for (x, char) in line.chars().enumerate() {
